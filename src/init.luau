@@ -6,7 +6,7 @@ local Groups = (function()
     local Result = {}
 
     for _, groupName in Groups do
-        Result[groupName] = true
+        Result[groupName.name] = true
     end
 
     return Result
@@ -58,8 +58,9 @@ local function onTouched(part: BasePart, otherPart: BasePart)
 	local selfVel = part.AssemblyLinearVelocity
 	local otherVel = otherPart.AssemblyLinearVelocity
     local relVel: vector = selfVel - otherVel -- `Vector3`s inherit from `vector` primative. It's fine.
+	local relSpeedDiff = vector.magnitude(relVel)
 
-	if vector.magnitude(relVel) < MIN_VELOCITY then return end
+	if relSpeedDiff < MIN_VELOCITY then return end
 
 	local isCrumple = CrumpleZones[part]
 	local impactDurability = isCrumple and CRUMPLE_IMPACT or IMPACT_BASE
@@ -70,7 +71,7 @@ local function onTouched(part: BasePart, otherPart: BasePart)
 
 	if impactSpeed > impactDurability then
 		breakPart(part)
-	elseif (relVel - impactSpeed) > shearDurability then
+	elseif (relSpeedDiff - impactSpeed) > shearDurability then
 		breakPart(part)
 	end
 end
