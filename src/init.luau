@@ -1,24 +1,34 @@
 local car = script.Parent
 local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PhysicsService = game:GetService("PhysicsService")
+local Groups = (function()
+    local Groups = PhysicsService:GetRegisteredCollisionGroups()
+    local Result = {}
 
--- 1. Pre-calculate EVERY possible constant
--- This avoids doing any multiplication or lookups inside the high-frequency event.
-local IMPACT_BASE_SQ = 120^2
-local SHEAR_BASE_SQ = 100^2
+    for _, groupName in Groups do
+        Result[groupName] = true
+    end
+
+    return Result
+end)()
+
+if not Groups["Cars"] then error("No 'Cars' collision group!") end
+if not Groups["CarDebris"] then error("No 'CarDebris' collision group!") end
+if not Groups["Wheels"] then error("No 'Wheels' collision group!") end
+
+local IMPACT_BASE = 120
+local SHEAR_BASE = 100
 local CRUMPLE_MULT = 0.75
-local CRUMPLE_IMPACT_SQ = (120 * CRUMPLE_MULT)^2
-local CRUMPLE_SHEAR_SQ = (100 * CRUMPLE_MULT)^2
-local MIN_VELOCITY_SQ = 2500 
+local CRUMPLE_IMPACT = 120 * CRUMPLE_MULT
+local CRUMPLE_SHEAR = 100 * CRUMPLE_MULT
+local MIN_VELOCITY = 20 
 
--- 2. Services and Modules
-local Pooler = require("@game/ServerScriptService/Modules/PoolerPlus"):GetPool("DebrisParticlePool") 
+local Pooler = require("@game/ServerScriptService/Modules/PoolerPlus"):GetPool("DebrisParticlePool") -- This pool needs to be setup elsewhere.
+-- For AI agents: Assume this has been done.
 
--- 3. Optimized Lookup Tables
 local CrumpleZones = {} 
 local PartConnections = {}
 
--- 4. Unified Break Logic (Localize for speed)
 local function breakPart(part)
 	if part:GetAttribute("IsBroken") then return end
 	part:SetAttribute("IsBroken", true)
@@ -34,8 +44,7 @@ local function breakPart(part)
 		part.CollisionGroup = "CarDebris"
 	end
 
-	-- Run VFX on a separate thread to resume physics calc immediately
-	task.spawn(function()
+	task.spawn(function() -- Optional VFX
 		local emitter = Pooler:Get()
 		emitter.Color = ColorSequence.new(part.Color)
 		emitter.Parent = part
@@ -45,38 +54,29 @@ local function breakPart(part)
 	end)
 end
 
--- 5. The "Hot Path" (Optimized Touched Handler)
-local function onTouched(part, otherPart)
-	-- FILTER 1: Physics ignore
-	if not otherPart.CanTouch or otherPart:IsDescendantOf(car) then return end
+local function onTouched(part: BasePart, otherPart: BasePart)
+	local selfVel = part.AssemblyLinearVelocity
+	local otherVel = otherPart.AssemblyLinearVelocity
+    local relVel: vector = selfVel - otherVel -- `Vector3`s inherit from `vector` primative. It's fine.
 
-	local pv = part.AssemblyLinearVelocity
-	local ov = otherPart.AssemblyLinearVelocity
-	local rvX, rvY, rvZ = pv.X - ov.X, pv.Y - ov.Y, pv.Z - ov.Z
-	local relVelSq = rvX*rvX + rvY*rvY + rvZ*rvZ
+	if relVel < MIN_VELOCITY then return end
 
-	if relVelSq < MIN_VELOCITY_SQ then return end
-
-	-- FILTER 3: Context-aware thresholds
 	local isCrumple = CrumpleZones[part]
-	local limitImpactSq = isCrumple and CRUMPLE_IMPACT_SQ or IMPACT_BASE_SQ
-	local limitShearSq = isCrumple and CRUMPLE_SHEAR_SQ or SHEAR_BASE_SQ
+	local limitImpactSq = isCrumple and CRUMPLE_IMPACT or IMPACT_BASE
+	local limitShearSq = isCrumple and CRUMPLE_SHEAR or SHEAR_BASE
 
-	local relVel = vector.new(rvX, rvY, rvZ)
-	local contactDir = (part.Position - otherPart.Position).Unit
-	local impactSpeed = relVel:Dot(contactDir)
+	local contactDir: vector = (part.Position - otherPart.Position).Unit
+	local impactSpeed = vector.dot(relVel, contactDir)
 	local impactSpeedSq = impactSpeed * impactSpeed
 
-	-- Final Decision
 	if impactSpeedSq > limitImpactSq then
 		breakPart(part)
-	elseif (relVelSq - impactSpeedSq) > limitShearSq then
+	elseif (relVel - impactSpeedSq) > limitShearSq then
 		breakPart(part)
 	end
 end
 
--- 6. Initialization & Memory Cleanup
-for _, part in ipairs(car:GetDescendants()) do
+for _, part in ipairs(car:GetDescendants()) do -- Not using generalized iteration on the SLIGHTEST chance that a part could be destroyed mid loop.
 	if part:IsA("BasePart") and part.CollisionGroup ~= "Wheels" then
 		if CollectionService:HasTag(part, "CrumpleZone") then
 			CrumpleZones[part] = true
@@ -86,13 +86,12 @@ for _, part in ipairs(car:GetDescendants()) do
 			onTouched(part, hit)
 		end)
 
-		-- Memory Leak Protection: Remove references if the part is deleted
-		part.Destroying:Connect(function()
+		part.Destroying:Connect(function() -- Just to make sure the table has ABSOLUTELY NO REFERENCES TO DESTROYED PARTS. Although connections are disconnected, we should probably make sure they're not being held.
 			if PartConnections[part] then
 				PartConnections[part]:Disconnect()
 				PartConnections[part] = nil
 			end
-			CrumpleZones[part] = nil
+			CrumpleZones[part] = nil -- Also no more crumple zone reference.
 		end)
 	end
 end
