@@ -62,16 +62,15 @@ local function onTouched(part: BasePart, otherPart: BasePart)
 	if relVel < MIN_VELOCITY then return end
 
 	local isCrumple = CrumpleZones[part]
-	local limitImpactSq = isCrumple and CRUMPLE_IMPACT or IMPACT_BASE
-	local limitShearSq = isCrumple and CRUMPLE_SHEAR or SHEAR_BASE
+	local impactDurability = isCrumple and CRUMPLE_IMPACT or IMPACT_BASE
+	local shearDurability = isCrumple and CRUMPLE_SHEAR or SHEAR_BASE
 
 	local contactDir: vector = (part.Position - otherPart.Position).Unit
 	local impactSpeed = vector.dot(relVel, contactDir)
-	local impactSpeedSq = impactSpeed * impactSpeed
 
-	if impactSpeedSq > limitImpactSq then
+	if impactSpeed > impactDurability then
 		breakPart(part)
-	elseif (relVel - impactSpeedSq) > limitShearSq then
+	elseif (relVel - impactSpeed) > shearDurability then
 		breakPart(part)
 	end
 end
