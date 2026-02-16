@@ -59,7 +59,7 @@ local function onTouched(part: BasePart, otherPart: BasePart)
 	local otherVel = otherPart.AssemblyLinearVelocity
     local relVel: vector = selfVel - otherVel -- `Vector3`s inherit from `vector` primative. It's fine.
 
-	if relVel < MIN_VELOCITY then return end
+	if vector.magnitude(relVel) < MIN_VELOCITY then return end
 
 	local isCrumple = CrumpleZones[part]
 	local impactDurability = isCrumple and CRUMPLE_IMPACT or IMPACT_BASE
