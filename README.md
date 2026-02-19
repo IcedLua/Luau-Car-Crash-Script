@@ -1,22 +1,27 @@
 # Luau-Car-Crash-Script
-A simple and performant car crash script for bricky/low poly Roblox cars. Do note that this script was made for my game and is NOT READY OUT OF THE BOX. If you want more performant (and more realistic!) breaking, try finding a deformation model instead of... this *thing*. This script also functions for buildings and stuff, but there is likely more performant ways to do this.
+A simple and performant car crash script for bricky/low poly Roblox cars. Do note that this script was made for my game and is ~~NOT READY OUT OF THE BOX~~ not plugnplay. If you want more performant (and more realistic!) breaking, try finding a deformation model instead of... this *thing*. This script also functions for buildings and stuff, but there is likely more performant ways to do this.
+
+## What? Why?
+Uh, yes, the code it's uhj. This is a break-on-collision per part script that spams .touched events, making it like a billion times betterer, but this is a visual choice. This script supports both shear (slding) and impact (head on) impact thresholds (in SPS) to determine when to :BreakJoints() of a part. It also works on buildings, and is MUCH more performant than a car crash/destruction script you'd find in toolbox, but it still is the same inefficient method, and, again, you should use different methods, like full hitboxes.
 
 ## Setting It Up
-This script is NOT ready out of box because this is for MY GAME, but you can use it too :3
+This script is ~~NOT ready out of box~~ not plug and play because this is ~~for MY GAME~~ intended for my personal usecases, but you can use it too :3. It is intended to be parented to cars (*and other destruction items*)
 On line 26, update it with the path to PoolerPlus
+
 Find PoolerPlus here on the [DevForum](https://devforum.roblox.com/t/v14-poolerplus-advanced-object-pooling/3817379) page!
 ```Lua
 local Pooler = require("@game/ServerScriptService/Modules/PoolerPlus"):GetPool("DebrisParticlePool")
 ```
+Also, `poolersetup.luau` is an example of how to set up the particle pool, because you do need to set up the pool.
 Then, make your collision groups, being:
-* `Cars`
-* `CarDebris`
-* `Wheels`
+* `Cars` (Car itself)
+* `CarDebris` (Mainly for faster lookup times)
+* `Wheels` (So your car doesnt destroy itself.)
 
 It is recommended `CarDebris` and `Wheels` is set to not collide with `Cars`, but this may vary if your cars are different.
 After, there are some optional tags (CollectionService) you can add to do more, which are:
-* `Destructible`
-* `CrumpleZone`
+* `Destructible` (Parts outside of a car that can be destroyed.)
+* `CrumpleZone` (A weaker part of the car with it's own threshold multiplier, 0.75 by default)
 
 ## License
 This project is licensed under MIT. Please please please give me credit in your game.
@@ -60,12 +65,13 @@ Magnitude Testing:
     Squaring:   0.187247 seconds
     -----------------------------------
 ```
+Magnitudes are used to calculate the magnitude of speed difference.
 
 *100 Samples of 1 hundred thousand runs per sample.*
 Subtraction Testing:
 ```
-    (Manual):   [vA.x + vB.x, vA.y + vB.y, vA.z + vB.z]
-    (Direct):   [vA + vB]
+    (Manual):   [vA.x - vB.x, vA.y - vB.y, vA.z - vB.z]
+    (Direct):   [vA - vB]
     ------------------------------------------
     Vector3 Manual:   0.003959s
     Vector3 Direct:   0.001978s
@@ -74,3 +80,4 @@ Subtraction Testing:
     Native Direct:    0.001980s
     ------------------------------------------
 ```
+Subtraction is used to calculate speed difference.
